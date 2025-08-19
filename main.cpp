@@ -26,17 +26,17 @@ int main(int argc, char* argv[]){
     server.init(config.port, user, passWord, databaseName, config.logWrite, 
         config.optLinger, config.trigMode, config.sqlPollNum, config.threadPollNum, config.close_log, config.actorMode);
     // 开启日志
-
+    server.log_write();
     // 开启数据库连接池
-
+    server.sql_pool();
     // 开启线程池
-
+    server.thread_pool();
     // 设置触发模式
-
+    server.trig_mode();
     // 开启监听
-
+    server.event_listen();
     // 循环运行
-
+    server.event_loop();
 
     return 0;
 }

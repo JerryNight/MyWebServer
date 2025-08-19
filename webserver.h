@@ -17,6 +17,9 @@
 #include "threadpool.h"
 #include "list_timer.h"
 #include "epoll_util.h"
+#include "http_connection.h"
+#include "log.h"
+#include "epoll_util.h"
 
 using std::string;
 
@@ -48,12 +51,12 @@ public:
     void timer(int connectfd, struct sockaddr_in client_address);
     // fd的定时器向后延迟
     void adjust_timer(timeNode *timer);
-    // 
+    // 定时器
     void deal_timer(timeNode *timer, int sockfd);
     // 收到客户端连接时的处理
     bool deal_client_data();
     // 收到信号，处理信号
-    bool deal_with_signal(bool timeout, bool stop_server);
+    bool deal_with_signal(bool& timeout, bool& stop_server);
     // 处理读数据请求
     void deal_with_read(int sockfd);
     // 处理写数据请求
@@ -90,11 +93,12 @@ public:
     int trigMode; // 默认0-LT 1-ET
     int listenTrigMode;
     int connectTrigMode;
-    epoll_util* epollUtil;
+
 
     // 定时器
-    client_data* user_timer;
-
+    client_data* users_timer;
+    // epoll工具
+    epoll_util epoll_utils;
 };
 
 

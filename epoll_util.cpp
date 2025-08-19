@@ -34,7 +34,7 @@ void epoll_util::del_fd(int epollfd, int fd){
 }
 
 // 信号处理函数
-static void sig_handler(int sig){
+void epoll_util::sig_handler(int sig){
     int msg = sig;
     send(epoll_util::u_pipe_fd[1], (char *)&msg, 1, 0);
 }

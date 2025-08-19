@@ -21,7 +21,7 @@ public:
     int get_freeconn(); // 获取连接
     void destroy_pool(); // 销毁所有连接
     // 单例模式，懒汉式
-    static sql_connection_pool& get_instance();
+    static sql_connection_pool* get_instance();
     void init(string url, string User, string PassWord, string DataBaseName, int Port, int MaxConn, int close_log); 
 private:
     // 私有构造函数、析构函数

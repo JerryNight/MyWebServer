@@ -70,7 +70,7 @@ void http_connection::init(int sockfd, const sockaddr_in &addr, char *root, int 
     strcpy(_sql_name, sqlname.c_str());
     doc_root = root;
     _trigMode = TRIGMode;
-    _close_log = close_log;
+    closeLog = close_log;
 
     init();
 }
@@ -130,7 +130,50 @@ bool http_connection::read_once(){
         return true;
     }
 }
-bool http_connection::write();
+// 向客户端socket写数据
+bool http_connection::write(){
+    int temp = 0;
+    // 写完了，没东西写了。
+    if (bytes_to_send == 0){
+        // 这次请求的任务完成，清理http信息
+        modfd(_epoll_fd, _sockfd, EPOLLIN, _trigMode);  // 监听sockfd的可读事件
+        init();
+        return true;
+    }
+    for (;;) {
+        // 向客户端socket缓冲区写数据
+        temp = writev(_sockfd, _iv, _iv_count);
+        if(temp < 0){
+            if (errno == EAGAIN){  // 
+                modfd(_epoll_fd, _sockfd, EPOLLOUT, _trigMode); // 监听sockfd的可写事件
+                return true;
+            }
+            unmap();
+            return false;
+        }
+        bytes_have_send += temp;
+        bytes_to_send -= temp;
+        if (bytes_have_send >= _iv[0].iov_len){
+            _iv[0].iov_len = 0;
+            _iv[1].iov_base = _file_address + (bytes_have_send - _write_idx);
+            _iv[1].iov_len = bytes_to_send;
+        } else {
+            _iv[0].iov_base = _write_buf + bytes_have_send;
+            _iv[0].iov_len = _iv[0].iov_len - bytes_have_send;
+        }
+        // 数据写完！重新设置监听读事件
+        if (bytes_to_send <= 0) {
+            unmap();
+            modfd(_epoll_fd, _sockfd, EPOLLIN, _trigMode);
+            if (_linger) {
+                init();
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+}
 void http_connection::initmysql_result(sql_connection_pool *connPool){
     // 从sql连接池取一个:创建一个RAII就行了
     sql_connection_RAII sql_conn_RAII(&mysql, connPool);
@@ -165,7 +208,7 @@ void http_connection::init(){ // 初始化一个http连接
     _read_idx = 0;
     _write_idx = 0;
     cgi = 0;
-    state = 0; // 0读
+    _state = 0; // 0读
     timer_flag = 0;
     improv = 0;
 
@@ -240,7 +283,7 @@ http_connection::HTTP_CODE http_connection::parse_request_line(char *text){
     _check_state = CHECK_STATE_HEADER;
     return NO_REQUEST;
 }
-// 解析请求头，会调用很多次
+// 解析请求头，会调用多次
 http_connection::HTTP_CODE http_connection::parse_headers(char *text){
     if (text[0] == '\0'){
         // 解析结束
@@ -406,19 +449,147 @@ http_connection::HTTP_CODE http_connection::do_request(){
     return FILE_REQUEST;
 
 }
-http_connection::HTTP_CODE http_connection::process_read();
-bool http_connection::process_write(HTTP_CODE ret);
+http_connection::HTTP_CODE http_connection::process_read(){
+    LINE_STATUS line_status = LINE_OK;
+    HTTP_CODE ret = NO_REQUEST;
+    char *text = 0;
+
+    while ((_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) || ((line_status = parse_line()) == LINE_OK))
+    {
+        text = get_line();
+        _start_line = _checked_idx;
+        LOG_INFO("%s", text);
+        switch (_check_state)
+        {
+        case CHECK_STATE_REQUESTLINE:
+        {
+            ret = parse_request_line(text);
+            if (ret == BAD_REQUEST)
+                return BAD_REQUEST;
+            break;
+        }
+        case CHECK_STATE_HEADER:
+        {
+            ret = parse_headers(text);
+            if (ret == BAD_REQUEST)
+                return BAD_REQUEST;
+            else if (ret == GET_REQUEST)
+            {
+                return do_request();
+            }
+            break;
+        }
+        case CHECK_STATE_CONTENT:
+        {
+            ret = parse_content(text);
+            if (ret == GET_REQUEST)
+                return do_request();
+            line_status = LINE_OPEN;
+            break;
+        }
+        default:
+            return INTERNAL_ERROR;
+        }
+    }
+    return NO_REQUEST;
+}
+bool http_connection::process_write(HTTP_CODE ret){
+    switch (ret)
+    {
+    case INTERNAL_ERROR:
+    {
+        add_status_line(500, error_500_title);
+        add_headers(strlen(error_500_form));
+        if (!add_content(error_500_form))
+            return false;
+        break;
+    }
+    case BAD_REQUEST:
+    {
+        add_status_line(404, error_404_title);
+        add_headers(strlen(error_404_form));
+        if (!add_content(error_404_form))
+            return false;
+        break;
+    }
+    case FORBIDDEN_REQUEST:
+    {
+        add_status_line(403, error_403_title);
+        add_headers(strlen(error_403_form));
+        if (!add_content(error_403_form))
+            return false;
+        break;
+    }
+    case FILE_REQUEST:
+    {
+        add_status_line(200, ok_200_title);
+        if (_file_stat.st_size != 0)
+        {
+            add_headers(_file_stat.st_size);
+            _iv[0].iov_base = _write_buf;
+            _iv[0].iov_len = _write_idx;
+            _iv[1].iov_base = _file_address;
+            _iv[1].iov_len = _file_stat.st_size;
+            _iv_count = 2;
+            bytes_to_send = _write_idx + _file_stat.st_size;
+            return true;
+        }
+        else
+        {
+            const char *ok_string = "<html><body></body></html>";
+            add_headers(strlen(ok_string));
+            if (!add_content(ok_string))
+                return false;
+        }
+    }
+    default:
+        return false;
+    }
+    _iv[0].iov_base = _write_buf;
+    _iv[0].iov_len = _write_idx;
+    _iv_count = 1;
+    bytes_to_send = _write_idx;
+    return true;
+}
 void http_connection::unmap(){
     if (_file_address){
         munmap(_file_address, _file_stat.st_size);
         _file_address = 0;
     }
 }
-bool http_connection::add_response(const char *format, ...);
-bool http_connection::add_content(const char *content);
-bool http_connection::add_status_line(int status, const char *title);
-bool http_connection::add_headers(int content_length);
-bool http_connection::add_content_type();
-bool http_connection::add_content_length(int content_length);
-bool http_connection::add_linger();
-bool http_connection::add_blank_line();
+bool http_connection::add_response(const char *format, ...){
+    if (_write_idx >= WRITE_BUFFER_SIZE) return false;
+    va_list arg_list;
+    va_start(arg_list, format);
+    int len = vsnprintf(_write_buf + _write_idx, WRITE_BUFFER_SIZE - 1 - _write_idx, format, arg_list);
+    if (len >= (WRITE_BUFFER_SIZE - 1 - _write_idx))
+    {
+        va_end(arg_list);
+        return false;
+    }
+    _write_idx += len;
+    va_end(arg_list);
+    LOG_INFO("request:%s", _write_buf);
+    return true;
+}
+bool http_connection::add_content(const char *content){
+    return add_response("%s", content);
+}
+bool http_connection::add_status_line(int status, const char *title){
+    return add_response("%s %d %s\r\n", "HTTP/1.1", status, title);
+}
+bool http_connection::add_headers(int content_length){
+    return add_content_length(content_length) && add_linger() && add_blank_line();
+}
+bool http_connection::add_content_type(){
+    return add_response("Content-Type:%s\r\n", "text/html");
+}
+bool http_connection::add_content_length(int content_length){
+    return add_response("Content-Length:%d\r\n", content_length);
+}
+bool http_connection::add_linger(){
+    return add_response("Connection:%s\r\n", (_linger == true) ? "keep-alive" : "close");
+}
+bool http_connection::add_blank_line(){
+    return add_response("%s", "\r\n");
+}

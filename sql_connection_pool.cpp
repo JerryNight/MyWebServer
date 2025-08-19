@@ -33,9 +33,9 @@ void sql_connection_pool::init(string Url, string User, string PassWord, string 
     _maxConn = _freeConn;
 }
 
-sql_connection_pool& sql_connection_pool::get_instance(){
+sql_connection_pool* sql_connection_pool::get_instance(){
     static sql_connection_pool connPool;
-    return connPool; 
+    return &connPool; 
 }
 
 MYSQL* sql_connection_pool::get_connection(){

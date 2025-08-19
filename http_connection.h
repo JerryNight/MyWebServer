@@ -114,8 +114,8 @@ public:
     static int _epoll_fd; // 全局epoll_fd
     static int _user_count; // 全局在线用户数量
     MYSQL* mysql;         // 当前http连接使用的mysql连接
-    int state;          // 读为0， 写为1
-    int timer_flag;
+    int _state;          // 读为0， 写为1
+    int timer_flag;  // 是否有定时器
     int improv;
 
 private: // 私有属性
@@ -147,7 +147,7 @@ private: // 私有属性
     char *doc_root;
     map<string, string> _users;
     int _trigMode;
-    int _close_log;
+    int closeLog;
 
     char _sql_user[100];
     char _sql_passwd[100];
