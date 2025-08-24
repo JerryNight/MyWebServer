@@ -20,6 +20,9 @@ const char *error_500_form = "There was an unusual problem serving the request f
 locker g_lock; // 全局锁
 map<string, string> g_user_map; // 全局用户信息表
 
+int http_connection::_epoll_fd = -1;
+int http_connection::_user_count = 0;
+
 // 全局方法 -------------------------------------------------------------------------
 
 int setnonblocking(int fd){
@@ -74,7 +77,7 @@ void http_connection::init(int sockfd, const sockaddr_in &addr, char *root, int 
 
     init();
 }
-void http_connection::close_conn(bool real_close = true){
+void http_connection::close_conn(bool real_close){
     if (real_close && _sockfd != -1) {
         removefd(_epoll_fd, _sockfd);
         _sockfd = -1;

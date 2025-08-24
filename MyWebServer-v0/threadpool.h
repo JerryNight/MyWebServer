@@ -37,14 +37,14 @@ private:
 
 template <typename T>
 threadpool<T>::threadpool(int actor_model, sql_connection_pool* sqlConnPool, int thread_number, int max_request){
-    if (thread_number <= 0 || max_request <= 0) throw std::execption();
+    if (thread_number <= 0 || max_request <= 0) throw std::exception();
     _thread_number = thread_number;
     _max_request = max_request;
     _sql_pool = sqlConnPool;
     // 创建线程池
     _threads = new pthread_t[thread_number];
     for (int i = 0; i < thread_number; i++) {
-        pthread_create(&_thread[i], NULL, worker, this);
+        pthread_create(&_threads[i], NULL, worker, this);
         pthread_detach(_threads[i]);
     }
 }
@@ -84,7 +84,7 @@ bool threadpool<T>::append_p(T* request){
 template <typename T>
 void* threadpool<T>::worker(void* arg){
     threadpool* pool = (threadpool*) arg;
-    pool.run();
+    pool->run();
     return pool;
 }
 
@@ -99,9 +99,9 @@ void threadpool<T>::run(){
         if (request == NULL) continue;
         if (_actor_mode == 1) { // 0-proactor  1-reactor：epoll收到就绪事件后，由应用程序主动读socket缓冲区的数据，再处理结果。
             if (request->_state == 0) { // 0读 1写
-                if (request.read_once()) {
+                if (request->read_once()) {
                     request->improv = 1;
-                    sql_connection_RAII sqlcon(&request->mysql, sqlConnPool);
+                    sql_connection_RAII sqlcon(&request->mysql, _sql_pool);
                     request->process();
                 } else {
                     request->improv = 1;
@@ -116,7 +116,7 @@ void threadpool<T>::run(){
                 }
             }
         } else {  // proactor: 由操作系统完成IO操作（读socket缓冲区的数据），应用程序只处理结果
-            sql_connection_RAII sqlcon(&request->mysql, sqlConnPool);
+            sql_connection_RAII sqlcon(&request->mysql, _sql_pool);
             request->process();
         }
     }

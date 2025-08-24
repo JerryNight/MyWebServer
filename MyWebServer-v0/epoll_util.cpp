@@ -1,6 +1,7 @@
 #include "epoll_util.h"
 
-
+int* epoll_util::u_pipe_fd = 0;
+int epoll_util::u_epollfd = 0;
 
 void epoll_util::init(int timeslot){
     timeslot = timeslot;
@@ -40,7 +41,7 @@ void epoll_util::sig_handler(int sig){
 }
 
 // 设置信号函数
-void epoll_util::add_sig(int sig, void(handler)(int), bool restart = true){
+void epoll_util::add_sig(int sig, void(handler)(int), bool restart){
     struct sigaction sa;
     memset(&sa, '\0', sizeof(sa));
     sa.sa_handler = handler;

@@ -1,5 +1,6 @@
 #include "list_timer.h"
-
+#include "epoll_util.h"
+#include "http_connection.h"
 
 sort_timer_lst::sort_timer_lst(){
     head = NULL;
@@ -106,3 +107,10 @@ void sort_timer_lst::tick(){
     }
 }
 
+void cb_func(client_data *user_data)
+{
+    epoll_ctl(epoll_util::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
+    assert(user_data);
+    close(user_data->sockfd);
+    http_connection::_user_count--;
+}

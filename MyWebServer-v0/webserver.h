@@ -12,14 +12,13 @@
 #include <fcntl.h>
 #include <string>
 
-#include "config.h"
-#include "sql_connection_pool.h"
+// #include "config.h"
+//#include "sql_connection_pool.h"
 #include "threadpool.h"
-#include "list_timer.h"
+//#include "list_timer.h"
 #include "epoll_util.h"
 #include "http_connection.h"
-#include "log.h"
-#include "epoll_util.h"
+//#include "log.h"
 
 using std::string;
 

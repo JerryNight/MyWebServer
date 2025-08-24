@@ -20,7 +20,6 @@
 #include <sys/wait.h>
 #include <sys/uio.h>
 #include <time.h>
-#include "epoll_util.h"
 
 class timeNode;
 struct client_data{
@@ -57,12 +56,6 @@ private:
 };
 
 
-void cb_func(client_data *user_data)
-{
-    epoll_ctl(epoll_util::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
-    assert(user_data);
-    close(user_data->sockfd);
-    http_connection::_user_count--;
-}
+void cb_func(client_data *user_data);
 
 #endif

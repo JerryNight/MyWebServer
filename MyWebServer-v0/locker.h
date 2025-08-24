@@ -47,7 +47,7 @@ public:
         return pthread_mutex_lock(&_mutex);
     }
     bool unlock(){
-        pthread_mutex_unlock(&_mutex);
+        return pthread_mutex_unlock(&_mutex);
     }
     pthread_mutex_t & getMutex(){
         return _mutex;

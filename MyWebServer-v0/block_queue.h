@@ -40,15 +40,15 @@ private:
 
 template <typename T>
 block_queue<T>::block_queue(int capacity){
-    if (capacity <= 0) throw std::execption();
+    if (capacity <= 0) throw std::exception();
     _array = new T[capacity];
     _capacity= capacity;
     _size = 0;
     _front = 0;
     _back = 0;
-    pthread_mutex_init(&mutex);
-    pthread_cond_init(&cond_consumer);
-    pthread_cond_init(&cond_producer);
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&cond_consumer, NULL);
+    pthread_cond_init(&cond_producer, NULL);
 }
 
 template <typename T>
@@ -73,7 +73,7 @@ void block_queue<T>::clear(){
 template <typename T>
 bool block_queue<T>::empty(){
     pthread_mutex_lock(&mutex);
-    bool ret = size == 0 ? true : false;
+    bool ret = _size == 0 ? true : false;
     pthread_mutex_unlock(&mutex);
     return ret;
 }
@@ -81,7 +81,7 @@ bool block_queue<T>::empty(){
 template <typename T>
 bool block_queue<T>::full(){
     pthread_mutex_lock(&mutex);
-    bool ret = size == _capacity ? true : false;
+    bool ret = _size == _capacity ? true : false;
     pthread_mutex_unlock(&mutex);
     return ret;
 }
@@ -90,7 +90,7 @@ template <typename T>
 bool block_queue<T>::front(T& value){
     if (empty()) return false;
     pthread_mutex_lock(&mutex);
-    value = _array[front];
+    value = _array[_front];
     pthread_mutex_unlock(&mutex);
     return true;
 }
@@ -99,10 +99,10 @@ template <typename T>
 bool block_queue<T>::back(T& value){
     if (empty()) return false;
     pthread_mutex_lock(&mutex);
-    if (back == 0) {
+    if (_back == 0) {
         value = _array[_capacity];
     } else {
-        value = _array[back - 1];
+        value = _array[_back - 1];
     }
     pthread_mutex_unlock(&mutex);
     return true;
@@ -114,8 +114,8 @@ bool block_queue<T>::push(const T& item){
     while (_size == _capacity) {
         pthread_cond_wait(&cond_producer, &mutex);
     }
-    _array[back] = item;
-    back = back == _capacity ? 0 : back + 1;
+    _array[_back] = item;
+    _back = _back == _capacity ? 0 : _back + 1;
     pthread_cond_broadcast(&cond_consumer);
     pthread_mutex_unlock(&mutex);
     return true;
@@ -127,8 +127,8 @@ bool block_queue<T>::pop(T& item){
     while (_size == 0) {
         pthread_cond_wait(&cond_consumer, &mutex);
     }
-    item = _array[front];
-    front = front == _capacity ? 0 : front + 1;
+    item = _array[_front];
+    _front = _front == _capacity ? 0 : _front + 1;
     pthread_cond_broadcast(&cond_producer);
     pthread_mutex_unlock(&mutex);
     return true;
@@ -144,13 +144,13 @@ bool block_queue<T>::pop(T& item, int timeout){
     // 主逻辑
     pthread_mutex_lock(&mutex);
     while (_size == 0) {
-        if (pthread_cond_timewait(&cond_consumer, &mutex, &ts) == ETIMEDOUT) {
+        if (pthread_cond_timedwait(&cond_consumer, &mutex, &ts) == ETIMEDOUT) {
             pthread_mutex_unlock(&mutex);
             return false;
         }
     }
-    item = _array[front];
-    front = front == _capacity ? 0 : front + 1;
+    item = _array[_front];
+    _front = _front == _capacity ? 0 : _front + 1;
     pthread_cond_broadcast(&cond_producer);
     pthread_mutex_unlock(&mutex);
     return true;

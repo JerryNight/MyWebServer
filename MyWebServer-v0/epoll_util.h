@@ -49,8 +49,7 @@ public:
     int timeslot;
 };
 
-int* epoll_util::u_pipe_fd = 0;
-int epoll_util::u_epollfd = 0;
+
 
 
 #endif

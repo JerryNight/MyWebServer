@@ -57,15 +57,5 @@ private:
     sql_connection_pool* sql_pollRAII;
 };
 
-sql_connection_RAII::sql_connection_RAII(MYSQL** con, sql_connection_pool* sql_pool){
-    *con = sql_pool->get_connection();
-    connRAII = *con;
-    sql_pollRAII = sql_pool;
-}
-
-sql_connection_RAII::~sql_connection_RAII(){
-    sql_pollRAII->release_connection(connRAII);
-}
-
 
 #endif

@@ -114,7 +114,7 @@ void WebServer::event_listen(){
     epoll_util::u_epollfd = epollfd;
     epoll_util::u_pipe_fd = pipefd;
     // epoll创建内核事件表
-    struct epoll_event event[MAX_EVENT_NUMBER];
+    // struct epoll_event event[MAX_EVENT_NUMBER];
     epollfd = epoll_create(1);
     assert(epollfd != -1);
     epoll_utils.add_fd(epollfd, listenfd, false, listenTrigMode);  // 监听listenfd
@@ -204,7 +204,7 @@ bool WebServer::deal_client_data(){
 // 收到信号，处理信号
 bool WebServer::deal_with_signal(bool& timeout, bool& stop_server){
     int ret = 0;
-    int sig;
+    // int sig;
     char signals[1024];
     ret = recv(pipefd[0], signals, sizeof(signals), 0);
     if (ret == 0 || ret == -1) return false;
