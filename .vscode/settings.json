@@ -59,6 +59,11 @@
         "mutex": "cpp",
         "semaphore": "cpp",
         "stop_token": "cpp",
-        "thread": "cpp"
+        "thread": "cpp",
+        "forward_list": "cpp",
+        "executor": "cpp",
+        "io_context": "cpp",
+        "timer": "cpp",
+        "future": "cpp"
     }
 }

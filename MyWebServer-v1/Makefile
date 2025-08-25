@@ -1,9 +1,9 @@
 CXX := g++
 CXXFLAGS := -Wall -g -std=c++14
-LDFLAGS := -pthread
+LDFLAGS := -pthread -lmysqlclient
 
 # 源码目录
-SRC_DIRS := buffer log test
+SRC_DIRS := buffer log test sqlpool threadpool timer
 # 目标目录
 BIN_DIR := bin
 

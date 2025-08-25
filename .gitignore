@@ -1,0 +1,64 @@
+# Compiled object files
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic Libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static Libraries
+*.lib
+*.a
+
+# Executable files
+*.exe
+*.out
+*.app
+
+# Debug files
+*.dSYM/
+*.stackdump
+
+# Build directories
+/build/
+/bin/
+/lib/
+/dist/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE-specific files
+# CLion
+.idea/
+cmake-build-*/
+
+# Visual Studio
+*.vcxproj
+*.vcxproj.user
+*.vcxproj.filters
+*.sln
+*.suo
+*.ncb
+*.user
+*.db
+*.opendb
+*.VC.db
+
+# VSCode
+.vscode/
+
+# Other
+*.log
+*.tmp
+*.swp
+*.DS_Store
+Thumbs.db
