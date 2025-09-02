@@ -64,6 +64,10 @@
         "executor": "cpp",
         "io_context": "cpp",
         "timer": "cpp",
-        "future": "cpp"
+        "future": "cpp",
+        "unordered_set": "cpp",
+        "bitset": "cpp",
+        "regex": "cpp",
+        "sstream": "cpp"
     }
 }

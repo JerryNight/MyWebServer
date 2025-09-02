@@ -38,7 +38,7 @@ void Buffer::HasWritten(size_t length){
 // 读相关接口
 // 消费length个字节
 void Buffer::Retrieve(size_t length) {
-    assert((write_pos_ - read_pos_ - length) > 0);
+    assert((write_pos_ - read_pos_ - length) >= 0);
     read_pos_ += length;
 }
 // 消费到指定位置
