@@ -20,7 +20,7 @@ public:
 private:
     void del(size_t index);
     void heapInsert(size_t index);
-    void heapify(size_t index, size_t size);
+    bool heapify(size_t index, size_t size);
     void swap(size_t i, size_t j);
     void flush(size_t index, size_t size);
 private:

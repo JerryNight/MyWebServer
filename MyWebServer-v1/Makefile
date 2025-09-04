@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -Wall -g -std=c++17
+CXXFLAGS := -Wall -g -std=c++17 -fsanitize=address
 LDFLAGS := -pthread -lmysqlclient
 
 # 源码目录

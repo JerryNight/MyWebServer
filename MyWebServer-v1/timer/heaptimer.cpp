@@ -34,8 +34,8 @@ void HeapTimer::tick(){
         if (std::chrono::duration_cast<MSecond>(node.expires - Clock::now()).count() > 0){
             break;
         }
-        node.cb();
         pop();
+        node.cb();
     }
 }
 void HeapTimer::pop(){
@@ -70,22 +70,30 @@ void HeapTimer::adjust(int id, int new_expires){
 
 // 删除指定元素
 void HeapTimer::del(size_t index){
-    assert(!heap.empty() && index < heap.size() && index >= 0);
+    assert(!heap.empty() && index < heap.size());
     size_t size = heap.size() - 1;
+    int id = heap[index].id;
     swap(index, size);
-    ref.erase(heap[size].id);
+    ref.erase(id);
     heap.pop_back();
     flush(index, size);
 }
 void HeapTimer::heapInsert(size_t index){
-    size_t dad = (index - 1) / 2;
-    while (heap[index] < heap[dad]) {
+    // size_t dad = (index - 1) / 2;
+    // while (heap[index] < heap[dad]) {
+    //     swap(index, dad);
+    //     index = dad;
+    //     dad = (index - 1) / 2;
+    // }
+    while (index > 0) {
+        size_t dad = (index - 1) / 2;
+        if (!(heap[index] < heap[dad])) break;
         swap(index, dad);
         index = dad;
-        dad = (index - 1) / 2;
     }
 }
-void HeapTimer::heapify(size_t index, size_t size){
+bool HeapTimer::heapify(size_t index, size_t size){
+    size_t i = index;
     size_t left = (index * 2) + 1;
     while (left < size) {
         size_t min = left + 1 < size && heap[left + 1] < heap[left] ? left + 1 : left;
@@ -94,6 +102,7 @@ void HeapTimer::heapify(size_t index, size_t size){
         index = min;
         left = (index * 2) + 1; 
     }
+    return i < index;
 }
 void HeapTimer::swap(size_t i, size_t j){
     assert(i >= 0 && i < heap.size());
@@ -103,6 +112,6 @@ void HeapTimer::swap(size_t i, size_t j){
     ref[heap[j].id] = j;
 }
 void HeapTimer::flush(size_t index, size_t size){
-    heapify(index, size);
-    heapInsert(index);
+    if (!heapify(index, size))
+        heapInsert(index);
 }

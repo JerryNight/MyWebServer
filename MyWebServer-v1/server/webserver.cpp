@@ -72,7 +72,7 @@ void WebServer::Start(){
             if (fd == listenFd_) {
                 DealListen_();
             } else if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)){
-                CloseConn_(&users_[fd]);
+                CloseConn_(fd);
             } else if (events & EPOLLIN) {
                 DealRead_(&users_[fd]);
             } else if (events & EPOLLOUT) {
@@ -165,7 +165,7 @@ void WebServer::InitEventMode_(int trigMode){
 void WebServer::AddClient(int fd, sockaddr_in addr){
     users_[fd].init(fd, addr);
     if (timeoutMS_ > 0) {
-        timer_->add(fd, timeoutMS_, std::bind(&WebServer::CloseConn_,this,&users_[fd]));
+        timer_->add(fd, timeoutMS_, std::bind(&WebServer::CloseConn_,this,fd));
     }
     epoller_->AddFd(fd, EPOLLIN | connEvent_);
     SetFdNonblock(fd);
@@ -201,10 +201,12 @@ void WebServer::DealListen_(){
 void WebServer::DealWrite_(HttpConn* client){
     ExtentTime_(client);
     threadpool_->AddTask(std::bind(&WebServer::OnWrite_, this, client));
+    // threadpool_->AddTask([this, client] { OnWrite_(client); });
 }
 void WebServer::DealRead_(HttpConn* client){
     ExtentTime_(client);
     threadpool_->AddTask(std::bind(&WebServer::OnRead_, this, client));
+    // threadpool_->AddTask([this, client] { OnRead_(client); });
 }
 
 void WebServer::SendError_(int fd, const char* info){
@@ -219,10 +221,15 @@ void WebServer::ExtentTime_(HttpConn* client){
         timer_->adjust(client->GetFd(), timeoutMS_);
     }
 }
-void WebServer::CloseConn_(HttpConn* client){
-    LOG_INFO("Client[%d] quit!", client->GetFd());
-    epoller_->DelFd(client->GetFd());
-    client->Close();
+void WebServer::CloseConn_(int fd){
+    auto it = users_.find(fd);
+    if (it == users_.end()) {
+        return;
+    }
+    LOG_INFO("Client[%d] quit!", it->second.GetFd());
+    epoller_->DelFd(it->second.GetFd());
+    it->second.Close();
+    // users_.erase(it);
 }
 
 /**
@@ -234,7 +241,7 @@ void WebServer::OnRead_(HttpConn* client){
     ssize_t ret = client->read(&Errno);
     if (ret < 0 && Errno != EAGAIN) {
         // 断开连接了
-        CloseConn_(client);
+        CloseConn_(client->GetFd());
         return;
     }
     LOG_DEBUG("Read request to Buffer finish!");
@@ -256,7 +263,7 @@ void WebServer::OnWrite_(HttpConn* client){
             return;
         }
     }
-    CloseConn_(client);
+    CloseConn_(client->GetFd());
 }
 void WebServer::OnProcess_(HttpConn* client){
     if (client->process()) {

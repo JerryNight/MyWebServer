@@ -12,7 +12,7 @@ struct TimerNode {
     int id;  // 定时器id
     TimeStamp expires; // 到期时间（时间戳）
     std::function<void()> cb;
-    bool operator<(const TimerNode& rhs){
+    bool operator<(const TimerNode& rhs)const{
         return expires < rhs.expires;
     }
 };

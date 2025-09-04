@@ -39,7 +39,7 @@ private:
 
     void SendError_(int fd, const char* info);
     void ExtentTime_(HttpConn* client);
-    void CloseConn_(HttpConn* client);
+    void CloseConn_(int fd);
 
     void OnRead_(HttpConn* client);
     void OnWrite_(HttpConn* client);
