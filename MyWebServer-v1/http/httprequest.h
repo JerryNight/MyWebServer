@@ -48,7 +48,7 @@ public:
 
     bool IsKeepAlive() const;
 
-public:
+private:
     // 解析一行数据
     bool ParseRequestLine_(const std::string& line);
     // 解析请求头
@@ -66,6 +66,9 @@ public:
     std::string method_, path_, version_, body_;
     std::unordered_map<std::string, std::string> header_;
     std::unordered_map<std::string, std::string> post_;
+
+    // 判断post请求中的body是否解析成功
+    size_t contentLen_;
 
     static const std::unordered_set<std::string> DEFAULT_HTML;
     static const std::unordered_map<std::string, int> DEFAULT_HTML_TAG;

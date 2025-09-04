@@ -68,6 +68,9 @@
         "unordered_set": "cpp",
         "bitset": "cpp",
         "regex": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "socket": "cpp",
+        "codecvt": "cpp",
+        "iomanip": "cpp"
     }
 }

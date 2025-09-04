@@ -13,60 +13,60 @@ const std::unordered_map<std::string, int> HttpRequest::DEFAULT_HTML_TAG{
 
 bool HttpRequest::UserVerify_(const std::string& username,const std::string& password,bool isLogin){
     if (username == "" || password == "") return false;
-    LOG_INFO("UserVerify username:%s, password=%s",username.c_str(),password.c_str());
+    LOG_INFO("HttpRequest::UserVerify: username:%s, password=%s",username.c_str(),password.c_str());
     MYSQL* sql;
-    SqlPool::GetInstance()->init("127.0.0.1",3306,"root","Lyt996430$","webserverdb",10);
+    // SqlPool::GetInstance()->init("127.0.0.1",3306,"root","Lyt996430$","webserverdb",10);
     SqlPoolRAII raii(&sql, SqlPool::GetInstance());
     assert(sql);
 
-    char query[256] = {0}; // sql查询
+    char query[1024] = {0}; // sql查询
     MYSQL_RES* result = nullptr;
+    MYSQL_ROW row;
     bool ret;
 
     // 查询用户密码
-    snprintf(query, 256, "select username,passwd from user where username = '%s'", username.c_str());
+    snprintf(query, 2024, "select username,passwd from user where username = '%s' limit 1;", username.c_str());
     LOG_DEBUG("%s", query);
     if (mysql_query(sql, query)){
-        LOG_ERROR("mysql query failed: %s",mysql_error(sql));
+        LOG_ERROR("HttpRequest::UserVerify:mysql query failed: %s",mysql_error(sql));
         return false;
     }
     result = mysql_store_result(sql);
     if (result == nullptr) {
-        LOG_DEBUG("query has no result");
+        LOG_DEBUG("HttpRequest::UserVerify:query has no result");
         return false;
     }
-    int num_rows = mysql_num_rows(result); // 获取行数
-    MYSQL_ROW row = mysql_fetch_row(result);
-
-    // 如果用户不存在，且不是登录 -> 注册行为
-    if (num_rows == 0 && !isLogin) {
-        LOG_DEBUG("register!");
-        memset(query,0, 256);
-        snprintf(query,256,"insert into user(username,password) values('%s','%s')",username.c_str(),password.c_str());
-        LOG_DEBUG("%s",query);
-        if (mysql_query(sql, query)){
-            LOG_DEBUG("MYSQL insert error");
-            
-            return false;
+    row = mysql_fetch_row(result);
+    if (row) {
+        std::string db_username = row[0] ? row[0] : "";
+        std::string db_password = row[1] ? row[1] : "";
+        // 已有账号，登录
+        if (isLogin) {
+            if (db_password == password){
+                LOG_DEBUG("HttpRequest::UserVerify:Login Success!");
+                ret = true;
+            } else {
+                LOG_DEBUG("HttpRequest::UserVerify:Password Mismatch!");
+                ret = false;
+            }
+        } else { // 已有账号，注册
+            LOG_DEBUG("HttpRequest::UserVerify:User Exist!");
+            ret = false;
         }
-        ret = true;
-    } else if (num_rows == 0 && isLogin) {
-        // 如果用户不存在，是登录 -> 登录行为，但该用户不存在
-        LOG_DEBUG("login:%s not exist",username.c_str());
-        ret = false;
-    } else  {
-        // 用户存在，不是登录 -> 注册行为，用户已存在
-        // 用户存在，是登录 -> 登录行为，校验密码
-        assert(row);
-        if (row[1] == password && isLogin) {
-            LOG_DEBUG("login access! username:%s",username.c_str());
+    } else {
+        if (isLogin) { // 账号不存在
+            LOG_DEBUG("HttpRequest::UserVerify:login:%s not exist",username.c_str());
+            ret = false;
+        } else { // 注册账号
+            LOG_DEBUG("HttpRequest::UserVerify:register!");
+            memset(query,0, 1024);
+            snprintf(query,1024,"insert into user(username,passwd) values('%s','%s');",username.c_str(),password.c_str());
+            LOG_DEBUG("HttpRequest::UserVerify:%s",query);
+            if (mysql_query(sql, query)){
+                LOG_DEBUG("HttpRequest::UserVerify:MYSQL insert error");
+                return false;
+            }
             ret = true;
-        } else if (row[1] != password && isLogin) {
-            LOG_DEBUG("password error");
-            ret = false;
-        } else if (row[0] == username && !isLogin) {
-            LOG_DEBUG("user exist!")
-            ret = false;
         }
     }
     mysql_free_result(result);
@@ -85,6 +85,7 @@ void HttpRequest::init(){
     state_ = REQUEST_LINE;
     header_.clear();
     post_.clear();
+    contentLen_ = 0;
 }
 
 
@@ -98,10 +99,11 @@ bool HttpRequest::ParseRequestLine_(const std::string& line){
         method_ = match[1];
         path_ = match[2];
         version_ = match[3];
-        state_ = HEADER;
+        LOG_DEBUG("ParseRequestLine:[%s], [%s], [%s]", method_.c_str(), path_.c_str(), version_.c_str());
         return true;
     }
-    LOG_ERROR("Parse Request Line Error");
+    LOG_ERROR("Parse Request Line Error: %s", line);
+    // printf("Parse Request Line Error: %s\n", line.c_str());
     return false;
 }
 
@@ -109,13 +111,27 @@ void HttpRequest::ParseHeader_(const std::string& line){
     std::regex pattern("^([^:]*): ?(.*)$");
     std::smatch match;
     if (std::regex_match(line, match, pattern)){
-        header_[match[1]] = match[2];
+        std::string key = match[1];
+        std::string value = match[2];
+        while (!value.empty() && (value.front() == ' ' || value.front() == '\t'))
+            value.erase(value.begin());
+        while (!value.empty() && (value.back() == ' ' || value.back() == '\t'))
+            value.pop_back();
+        header_[key] = value;
+        if (key == "Content-Length")
+            contentLen_ = static_cast<size_t>(std::stoul(value));
     } else {
-        state_ = BODY;
+        LOG_DEBUG("ParseHeader finish!");
+        if (line.empty() && header_.count("Content-Length") != 0){
+            state_ = BODY;
+        } else {
+            state_ = FINISH;
+        }
     }
 }
 
 void HttpRequest::ParseBody_(const std::string& line){
+    LOG_DEBUG("ParseBody start~");
     body_ = line;
     ParsePost_();
     state_ = FINISH;
@@ -134,10 +150,12 @@ void HttpRequest::ParsePath_(){
             }
         }
     }
+    LOG_DEBUG("ParsePath:%s",path_.c_str());
 }
 
 // 解析请求方式
 void HttpRequest::ParsePost_(){
+    LOG_DEBUG("Method = %s && Content-Type = %s", method_.c_str(), header_["Content-Type"].c_str());
     if (method_ == "POST" && header_["Content-Type"] == "application/x-www-form-urlencoded"){
         ParseFromUrl_();
         // 是register或login
@@ -183,7 +201,8 @@ void HttpRequest::ParseFromUrl_(){
             if (start < end){
                 std::string pairStr(result.data() + start, end - start);
                 auto [key, value] = ParseKeyValue_(pairStr);
-                post_[std::move(key)] = std::move(value);
+                // post_[std::move(key)] = std::move(value);
+                post_[key] = value;
                 LOG_DEBUG("Parse:%s = %s", key.c_str(), value.c_str());
             }
             start = end + 1;
@@ -203,6 +222,11 @@ std::pair<std::string, std::string> HttpRequest::ParseKeyValue_(std::string pair
     return {std::move(key), std::move(value)};
 }
 
+/**
+ * 1.解析http请求行，解析出path/method/version等
+ * 2.解析http请求头，解析出key-value,保存在header_
+ * 3.解析http请求体，parseBody -> parsePost -> parseUrl -> 是否登录 ->UserVerify
+ */
 bool HttpRequest::parse(Buffer& buffer){
     const char CRLF[] = "\r\n";
     if (buffer.ReadableBytes() <= 0)
@@ -210,34 +234,42 @@ bool HttpRequest::parse(Buffer& buffer){
     while (buffer.ReadableBytes() && state_ != FINISH) {
         // 在buffer可读字符串中，找到第一个\r\n
         const char* lineEnd = std::search(buffer.Peek(),buffer.BeginWriteConst(),CRLF,CRLF+2);
+        // 没有在buffer里找到\r\n，说明数据不完整。
+        if (lineEnd == buffer.BeginWrite() && buffer.ReadableBytes() < contentLen_){
+            // 没读完
+            LOG_DEBUG("TCP packet splicing! lineEnd = %s, buffer = %s", lineEnd, buffer.Peek());
+            LOG_DEBUG("ContentLen = %d, buffer = ", contentLen_ , buffer.ReadableBytes());
+            return false;
+        }
         // 获取一行
         std::string line(buffer.Peek(), lineEnd);
         // 解析
         switch (state_){
         case REQUEST_LINE:
-            if (!ParseRequestLine_(line))
+            if (!ParseRequestLine_(line)){
+                // 把buffer打印出来
+                std::string p = buffer.RetrieveAllToString();
+                LOG_ERROR("Parse Error:%s", p.c_str());
                 return false;
+            }
             ParsePath_();
+            state_ = HEADER;
+            buffer.RetrieveUntil(lineEnd + 2);
             break;
         case HEADER:
             ParseHeader_(line);
-            if (buffer.ReadableBytes() <= 2){
-                state_ = FINISH;
-            }
+            buffer.RetrieveUntil(lineEnd + 2);
             break;
         case BODY:
+            LOG_DEBUG("HttpRequest::parse: Buffer.ReadableBytes() = %d; contentLen = %d", buffer.ReadableBytes(), contentLen_);
             ParseBody_(line);
+            buffer.Retrieve(contentLen_);
             break;
         default:
             break;
         }
-
-        if (lineEnd == buffer.BeginWrite()){
-            // 读完了
-            break;
-        }
         // 消费buffer
-        buffer.RetrieveUntil(lineEnd + 2);
+        
     }
     LOG_DEBUG("[%s], [%s], [%s]", method_.c_str(), path_.c_str(), version_.c_str());
     return true;
